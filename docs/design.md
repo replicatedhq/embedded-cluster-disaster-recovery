@@ -45,13 +45,17 @@ the private operation directory and exposed only through the bootstrap Unix
 socket after the operation succeeds. EC holds the opaque JSON in a mode-0600
 file while it rebuilds the cluster.
 
-For the in-cluster phase, operation creation synchronously persists the opaque
+EC first installs cluster infrastructure and this release-selected extension,
+but leaves the application namespace empty. For the in-cluster phase, operation
+creation synchronously persists the opaque
 configuration as Kubernetes Secrets, creates the stable Velero repository
 password and backup storage location, applies proxy configuration, and waits
 for the Velero rollout. Only then does the handler acknowledge `Create`, which
 lets EC delete its protected copy safely. The restore operation then creates a
-Velero Restore from the paired backup. EC marks recovery complete only after a
-clean Velero completion.
+Velero Restore from the paired backup. EC then reconciles the exact backed-up
+Helm release and marks recovery complete only after both steps succeed. Restoring
+before chart reconciliation is required because Velero file-system restore does
+not overwrite data in a PVC that already exists.
 
 The replacement cluster runs the exact backed-up release. Normal upgrade logic
 is intentionally unavailable until recovery completes.
