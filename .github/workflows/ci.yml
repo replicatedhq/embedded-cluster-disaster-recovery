@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - uses: azure/setup-helm@v5
+      - name: Verify Go, protocol, workflow, and chart
+        run: make verify
+      - name: Build release artifacts
+        run: make package
+      - name: Verify the container builds
+        run: docker build --build-arg TARGETARCH=amd64 -t embedded-cluster-dr:test .
+
