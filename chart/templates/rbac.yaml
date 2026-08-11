@@ -1,0 +1,58 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: embedded-cluster-dr
+  labels:
+    {{- include "embedded-cluster-dr.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "get", "update"]
+  - apiGroups: ["velero.io"]
+    resources: ["backups", "restores", "backupstoragelocations", "deletebackuprequests"]
+    verbs: ["create", "get", "list", "watch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["velero"]
+    verbs: ["get", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: embedded-cluster-dr
+  labels:
+    {{- include "embedded-cluster-dr.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: embedded-cluster-dr
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "embedded-cluster-dr.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ printf "%s-token-review" .Release.Name | trunc 63 | trimSuffix "-" }}
+  labels:
+    {{- include "embedded-cluster-dr.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ printf "%s-token-review" .Release.Name | trunc 63 | trimSuffix "-" }}
+  labels:
+    {{- include "embedded-cluster-dr.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ printf "%s-token-review" .Release.Name | trunc 63 | trimSuffix "-" }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "embedded-cluster-dr.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
