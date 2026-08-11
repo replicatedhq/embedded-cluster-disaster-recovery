@@ -1,0 +1,2 @@
+# Packages created in the chart source directory must not be embedded again.
+embedded-cluster-disaster-recovery-*.tgz
