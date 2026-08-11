@@ -43,12 +43,14 @@ spec:
           artifacts:
             - os: linux
               arch: amd64
-              path: bootstrap/linux-amd64/embedded-cluster-dr
+              path: bootstrap/linux-amd64/embedded-cluster-dr.xz
+              compression: xz
               sha256: <raw linux-amd64 binary sha256>
               executable: embedded-cluster-dr
             - os: linux
               arch: arm64
-              path: bootstrap/linux-arm64/embedded-cluster-dr
+              path: bootstrap/linux-arm64/embedded-cluster-dr.xz
+              compression: xz
               sha256: <raw linux-arm64 binary sha256>
               executable: embedded-cluster-dr
         service:
@@ -117,7 +119,7 @@ and upgrades only as a separate later operation.
 
 ## Development
 
-Requirements are Go 1.24+, Helm, and Docker.
+Requirements are Go 1.24+, Helm, XZ Utils, and Docker.
 
 ```sh
 make verify
@@ -126,9 +128,12 @@ docker build --build-arg TARGETARCH=amd64 -t embedded-cluster-dr:dev .
 ```
 
 `make package` builds the Linux bootstrap executables for amd64 and arm64,
-embeds both beneath `bootstrap/` in the Helm chart, and writes checksums for the
-raw binaries and chart. A `vX.Y.Z` tag publishes the multi-architecture image,
-chart, bootstrap binaries, checksums, and GitHub release.
+compresses both with XZ beneath `bootstrap/` in the Helm chart, and writes
+checksums for the decompressed binaries and chart. XZ keeps each chart member
+below Helm's 5 MiB safety limit; EC decompresses it with a bounded reader and
+verifies the executable checksum before running it. A `vX.Y.Z` tag publishes
+the multi-architecture image, chart, bootstrap binaries, checksums, and GitHub
+release.
 
 See [design.md](docs/design.md) for invariants and
 [testing.md](docs/testing.md) for the R2 end-to-end validation procedure.
