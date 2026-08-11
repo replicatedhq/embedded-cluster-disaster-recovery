@@ -1,0 +1,11 @@
+apiVersion: v2
+name: embedded-cluster-disaster-recovery
+description: Replicated Embedded Cluster lifecycle extension for Velero disaster recovery
+type: application
+version: 0.1.0
+appVersion: 0.1.0
+dependencies:
+  - name: velero
+    version: 12.1.0
+    repository: https://vmware-tanzu.github.io/helm-charts
+

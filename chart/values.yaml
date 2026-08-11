@@ -1,0 +1,60 @@
+image:
+  repository: ghcr.io/replicatedhq/embedded-cluster-disaster-recovery
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  name: embedded-cluster-dr
+
+service:
+  port: 8080
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+velero:
+  fullnameOverride: velero
+  image:
+    repository: docker.io/velero/velero
+    tag: v1.18.2
+  initContainers:
+    - name: velero-plugin-for-aws
+      image: docker.io/velero/velero-plugin-for-aws:v1.14.2
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - mountPath: /target
+          name: plugins
+  credentials:
+    useSecret: false
+  backupsEnabled: false
+  snapshotsEnabled: false
+  deployNodeAgent: true
+  configuration:
+    defaultVolumesToFsBackup: true
+    extraEnvVars:
+      - name: HTTP_PROXY
+        valueFrom:
+          secretKeyRef:
+            name: embedded-cluster-dr-proxy
+            key: HTTP_PROXY
+            optional: true
+      - name: HTTPS_PROXY
+        valueFrom:
+          secretKeyRef:
+            name: embedded-cluster-dr-proxy
+            key: HTTPS_PROXY
+            optional: true
+      - name: NO_PROXY
+        value: 127.0.0.1,localhost,.svc,.cluster.local
+  rbac:
+    create: true
+    clusterAdministrator: true
+  metrics:
+    serviceMonitor:
+      enabled: false
+      autodetect: false
