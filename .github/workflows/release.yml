@@ -49,4 +49,4 @@ jobs:
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag dist/embedded-cluster-dr-linux-*.tar.gz dist/checksums.txt
+        run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag dist/embedded-cluster-dr-linux-* dist/checksums.txt

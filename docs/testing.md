@@ -58,7 +58,7 @@ bootstrap, imported-state, runtime, and topology boundaries independently.
 
 ## Additional compatibility cases
 
-- amd64 and arm64 bootstrap archives.
+- amd64 and arm64 bootstrap binaries embedded in the extension chart.
 - Single-node and mixed controller/worker topology.
 - R2 and a conventional AWS S3 bucket.
 - A TLS-intercepting endpoint with a custom CA.

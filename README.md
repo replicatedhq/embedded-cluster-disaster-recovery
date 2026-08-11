@@ -22,8 +22,8 @@ transport. The extension never reads or changes the contents of EC's archive.
 
 ## Vendor opt-in
 
-The application release includes the extension chart and bootstrap artifacts,
-then binds backup and restore to the same handler:
+The application release includes the extension chart, which packages the
+platform bootstrap binaries, then binds backup and restore to the same handler:
 
 ```yaml
 apiVersion: embeddedcluster.replicated.com/v1beta1
@@ -43,13 +43,13 @@ spec:
           artifacts:
             - os: linux
               arch: amd64
-              path: embedded-cluster-dr-linux-amd64.tar.gz
-              sha256: <release artifact sha256>
+              path: bootstrap/linux-amd64/embedded-cluster-dr
+              sha256: <raw linux-amd64 binary sha256>
               executable: embedded-cluster-dr
             - os: linux
               arch: arm64
-              path: embedded-cluster-dr-linux-arm64.tar.gz
-              sha256: <release artifact sha256>
+              path: bootstrap/linux-arm64/embedded-cluster-dr
+              sha256: <raw linux-arm64 binary sha256>
               executable: embedded-cluster-dr
         service:
           namespace: embedded-cluster-dr
@@ -125,9 +125,10 @@ make package VERSION=0.1.0
 docker build --build-arg TARGETARCH=amd64 -t embedded-cluster-dr:dev .
 ```
 
-`make package` produces Linux bootstrap archives for amd64 and arm64, the Helm
-chart, and checksums. A `vX.Y.Z` tag publishes the multi-architecture image,
-chart, bootstrap archives, checksums, and GitHub release.
+`make package` builds the Linux bootstrap executables for amd64 and arm64,
+embeds both beneath `bootstrap/` in the Helm chart, and writes checksums for the
+raw binaries and chart. A `vX.Y.Z` tag publishes the multi-architecture image,
+chart, bootstrap binaries, checksums, and GitHub release.
 
 See [design.md](docs/design.md) for invariants and
 [testing.md](docs/testing.md) for the R2 end-to-end validation procedure.
