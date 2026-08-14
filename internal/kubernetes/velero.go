@@ -12,13 +12,14 @@ import (
 )
 
 type Velero struct {
-	client       *Client
-	namespace    string
-	pollInterval time.Duration
+	client            *Client
+	namespace         string
+	pollInterval      time.Duration
+	backupSyncTimeout time.Duration
 }
 
 func NewVelero(client *Client, namespace string) *Velero {
-	return &Velero{client: client, namespace: namespace, pollInterval: 5 * time.Second}
+	return &Velero{client: client, namespace: namespace, pollInterval: 5 * time.Second, backupSyncTimeout: 5 * time.Minute}
 }
 
 func (v *Velero) Backup(ctx context.Context, name string, policy protocol.BackupPolicy, progress func(protocol.Progress)) error {
@@ -41,6 +42,12 @@ func (v *Velero) Backup(ctx context.Context, name string, policy protocol.Backup
 }
 
 func (v *Velero) Restore(ctx context.Context, name, backupName string, progress func(protocol.Progress)) error {
+	progress(protocol.Progress{Phase: "velero-sync", Message: "Waiting for Velero backup storage synchronization"})
+	syncCtx, cancel := context.WithTimeout(ctx, v.backupSyncTimeout)
+	defer cancel()
+	if err := v.waitForBackup(syncCtx, backupName); err != nil {
+		return fmt.Errorf("wait for Velero backup %q to synchronize: %w", backupName, err)
+	}
 	resource := map[string]any{
 		"apiVersion": "velero.io/v1", "kind": "Restore",
 		"metadata": map[string]any{"name": name, "namespace": v.namespace, "labels": map[string]any{"app.kubernetes.io/managed-by": "embedded-cluster-disaster-recovery"}},
@@ -52,6 +59,26 @@ func (v *Velero) Restore(ctx context.Context, name, backupName string, progress 
 		return fmt.Errorf("create Velero restore: %w", err)
 	}
 	return v.wait(ctx, "restores", name, progress)
+}
+
+func (v *Velero) waitForBackup(ctx context.Context, name string) error {
+	path := v.collectionPath("backups") + "/" + url.PathEscape(name)
+	ticker := time.NewTicker(v.pollInterval)
+	defer ticker.Stop()
+	for {
+		status, err := v.client.Do(ctx, http.MethodGet, path, nil, nil)
+		if err == nil {
+			return nil
+		}
+		if status != http.StatusNotFound {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func (v *Velero) DeleteBackup(ctx context.Context, backupName string) error {

@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -299,7 +300,7 @@ func (s *Store) save(ctx context.Context, settings Settings) error {
 		"metadata": map[string]any{"name": "default", "namespace": s.namespace},
 		"spec": map[string]any{
 			"provider": "aws", "default": true,
-			"objectStorage": map[string]any{"bucket": settings.Storage.Bucket, "prefix": settings.Storage.Prefix},
+			"objectStorage": map[string]any{"bucket": settings.Storage.Bucket, "prefix": veleroStoragePrefix(settings.Storage.Prefix)},
 			"credential":    map[string]any{"name": configurationSecret, "key": "cloud"},
 			"config":        backupStorageConfig(settings.Storage),
 		},
@@ -321,6 +322,10 @@ func (s *Store) save(ctx context.Context, settings Settings) error {
 		return fmt.Errorf("save disaster recovery credentials: %w", err)
 	}
 	return nil
+}
+
+func veleroStoragePrefix(prefix string) string {
+	return path.Join(strings.Trim(prefix, "/"), "velero")
 }
 
 func (s *Store) upsert(ctx context.Context, collection, name string, object map[string]any) error {
