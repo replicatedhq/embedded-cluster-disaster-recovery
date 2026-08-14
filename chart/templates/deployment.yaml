@@ -50,7 +50,10 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: DR_TEMP_ROOT
-              value: /var/run/embedded-cluster-dr
+              # The emptyDir mount itself is initialized by kubelet. Use an
+              # application-owned child so the non-root controller can enforce
+              # mode 0700 without trying to chmod the volume root.
+              value: /var/run/embedded-cluster-dr/work
           volumeMounts:
             - name: runtime
               mountPath: /var/run/embedded-cluster-dr

@@ -34,6 +34,11 @@ velero:
   backupsEnabled: false
   snapshotsEnabled: false
   deployNodeAgent: true
+  nodeAgent:
+    # EC exposes the configured k0s kubelet root through this stable symlink,
+    # independent of the installation's selected data directory.
+    podVolumePath: /var/lib/ec/kubelet/pods
+    pluginVolumePath: /var/lib/ec/kubelet/plugins
   configuration:
     defaultVolumesToFsBackup: true
     extraEnvVars:
