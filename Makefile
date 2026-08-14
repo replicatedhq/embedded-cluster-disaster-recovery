@@ -23,6 +23,10 @@ vet:
 chart:
 	helm lint chart
 	helm template embedded-cluster-dr chart --namespace embedded-cluster-dr --include-crds >/dev/null
+	@helm template embedded-cluster-dr chart --namespace embedded-cluster-dr | grep -q 'value: /var/run/embedded-cluster-dr/work'
+	@helm template embedded-cluster-dr chart --namespace embedded-cluster-dr | grep -q 'path: /var/lib/ec/kubelet/pods'
+	@helm template embedded-cluster-dr chart --namespace embedded-cluster-dr | grep -q 'path: /var/lib/ec/kubelet/plugins'
+	@helm template embedded-cluster-dr chart --namespace embedded-cluster-dr | grep -q 'memory: 512Mi'
 
 verify: test test-race vet chart
 

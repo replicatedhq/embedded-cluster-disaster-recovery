@@ -23,6 +23,7 @@ import (
 )
 
 const lifecycleAudience = "embedded-cluster-lifecycle"
+const defaultTempDirName = "embedded-cluster-dr-work"
 
 func main() {
 	if err := run(); err != nil {
@@ -67,7 +68,10 @@ func run() error {
 func runtimeHandler() (net.Listener, http.Handler, error) {
 	socketPath := os.Getenv("EC_LIFECYCLE_SOCKET")
 	bootstrap := socketPath != ""
-	tempRoot := envDefault("DR_TEMP_ROOT", filepath.Join(os.TempDir(), "embedded-cluster-dr"))
+	// During bootstrap, EC extracts the executable directly into TMPDIR using
+	// its declared name (embedded-cluster-dr). Keep runtime state under a
+	// distinct path so the executable and its work directory cannot collide.
+	tempRoot := envDefault("DR_TEMP_ROOT", filepath.Join(os.TempDir(), defaultTempDirName))
 
 	var application workflow.ApplicationBackup
 	var reviewer auth.TokenReviewer

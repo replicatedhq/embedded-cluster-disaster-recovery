@@ -15,7 +15,10 @@ resources:
     cpu: 50m
     memory: 64Mi
   limits:
-    memory: 256Mi
+    # age's default scrypt work factor requires about 256 MiB by itself while
+    # encrypting and decrypting the EC state archive. Leave headroom for the
+    # controller and S3 client so backup/restore cannot be OOM-killed mid-run.
+    memory: 512Mi
 
 velero:
   fullnameOverride: velero
@@ -34,6 +37,11 @@ velero:
   backupsEnabled: false
   snapshotsEnabled: false
   deployNodeAgent: true
+  nodeAgent:
+    # EC exposes the configured k0s kubelet root through this stable symlink,
+    # independent of the installation's selected data directory.
+    podVolumePath: /var/lib/ec/kubelet/pods
+    pluginVolumePath: /var/lib/ec/kubelet/plugins
   configuration:
     defaultVolumesToFsBackup: true
     extraEnvVars:

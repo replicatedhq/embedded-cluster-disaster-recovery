@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -41,9 +42,17 @@ type Manifest struct {
 }
 
 type ObjectStore struct {
-	client *s3.Client
-	bucket string
-	prefix string
+	client       s3Client
+	bucket       string
+	prefix       string
+	newRecipient func(string) (age.Recipient, error)
+}
+
+type s3Client interface {
+	ListObjectsV2(context.Context, *s3.ListObjectsV2Input, ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
+	PutObject(context.Context, *s3.PutObjectInput, ...func(*s3.Options)) (*s3.PutObjectOutput, error)
+	DeleteObject(context.Context, *s3.DeleteObjectInput, ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
+	GetObject(context.Context, *s3.GetObjectInput, ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 }
 
 func NewObjectStore(ctx context.Context, configuration StorageConfiguration) (*ObjectStore, error) {
@@ -85,7 +94,14 @@ func NewObjectStore(ctx context.Context, configuration StorageConfiguration) (*O
 			options.BaseEndpoint = aws.String(strings.TrimRight(configuration.Endpoint, "/"))
 		}
 	})
-	return &ObjectStore{client: client, bucket: configuration.Bucket, prefix: strings.Trim(configuration.Prefix, "/")}, nil
+	return &ObjectStore{
+		client: client,
+		bucket: configuration.Bucket,
+		prefix: strings.Trim(configuration.Prefix, "/"),
+		newRecipient: func(recoveryKey string) (age.Recipient, error) {
+			return age.NewScryptRecipient(recoveryKey)
+		},
+	}, nil
 }
 
 func (s *ObjectStore) Test(ctx context.Context) error {
@@ -110,40 +126,70 @@ func (s *ObjectStore) TestWritable(ctx context.Context) error {
 }
 
 func (s *ObjectStore) PutEncryptedFile(ctx context.Context, objectKey, sourcePath, recoveryKey string) error {
-	recipient, err := age.NewScryptRecipient(recoveryKey)
+	recipient, err := s.newRecipient(recoveryKey)
 	if err != nil {
 		return fmt.Errorf("initialize recovery encryption: %w", err)
 	}
-	reader, writer := io.Pipe()
-	encryptionDone := make(chan error, 1)
-	go func() {
-		source, err := os.Open(sourcePath)
-		if err != nil {
-			_ = writer.CloseWithError(err)
-			encryptionDone <- err
-			return
-		}
-		defer source.Close()
-		encrypted, err := age.Encrypt(writer, recipient)
-		if err == nil {
-			_, err = io.Copy(encrypted, source)
-			if closeErr := encrypted.Close(); err == nil && closeErr != nil {
-				err = closeErr
-			}
-		}
-		_ = writer.CloseWithError(err)
-		encryptionDone <- err
-	}()
-	_, uploadErr := s.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(s.objectKey(objectKey)), Body: reader, ContentType: aws.String("application/age")})
-	_ = reader.CloseWithError(uploadErr)
-	encryptionErr := <-encryptionDone
-	if encryptionErr != nil {
-		return fmt.Errorf("encrypt EC state archive: %w", encryptionErr)
+	encrypted, size, err := stageEncryptedFile(sourcePath, recipient)
+	if err != nil {
+		return fmt.Errorf("encrypt EC state archive: %w", err)
 	}
-	if uploadErr != nil {
-		return fmt.Errorf("upload encrypted EC state archive: %w", uploadErr)
+	encryptedPath := encrypted.Name()
+	defer func() {
+		_ = encrypted.Close()
+		_ = os.Remove(encryptedPath)
+	}()
+	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(s.bucket), Key: aws.String(s.objectKey(objectKey)), Body: encrypted,
+		ContentLength: aws.Int64(size), ContentType: aws.String("application/age"),
+	})
+	if err != nil {
+		return fmt.Errorf("upload encrypted EC state archive: %w", err)
 	}
 	return nil
+}
+
+func stageEncryptedFile(sourcePath string, recipient age.Recipient) (_ *os.File, size int64, returnedErr error) {
+	source, err := os.Open(sourcePath)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer source.Close()
+
+	encrypted, err := os.CreateTemp(filepath.Dir(sourcePath), ".ec-state-*.age")
+	if err != nil {
+		return nil, 0, err
+	}
+	encryptedPath := encrypted.Name()
+	defer func() {
+		if returnedErr != nil {
+			_ = encrypted.Close()
+			_ = os.Remove(encryptedPath)
+		}
+	}()
+	if err := encrypted.Chmod(0600); err != nil {
+		return nil, 0, err
+	}
+
+	writer, err := age.Encrypt(encrypted, recipient)
+	if err != nil {
+		return nil, 0, err
+	}
+	if _, err := io.Copy(writer, source); err != nil {
+		_ = writer.Close()
+		return nil, 0, err
+	}
+	if err := writer.Close(); err != nil {
+		return nil, 0, err
+	}
+	position, err := encrypted.Seek(0, io.SeekEnd)
+	if err != nil {
+		return nil, 0, err
+	}
+	if _, err := encrypted.Seek(0, io.SeekStart); err != nil {
+		return nil, 0, err
+	}
+	return encrypted, position, nil
 }
 
 func (s *ObjectStore) GetDecryptedFile(ctx context.Context, objectKey, destination, recoveryKey string) (*protocol.ArtifactDescriptor, error) {
@@ -249,7 +295,7 @@ func (s *ObjectStore) ListRetentionManifests(ctx context.Context) ([]Manifest, e
 }
 
 func (s *ObjectStore) listManifests(ctx context.Context) ([]Manifest, error) {
-	prefix := s.objectKey("recovery-points/")
+	prefix := strings.TrimRight(s.objectKey("recovery-points"), "/") + "/"
 	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{Bucket: aws.String(s.bucket), Prefix: aws.String(prefix)})
 	var manifests []Manifest
 	for paginator.HasMorePages() {

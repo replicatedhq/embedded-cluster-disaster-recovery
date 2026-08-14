@@ -93,6 +93,7 @@ func TestSaveSetupPublishesConfigurationLast(t *testing.T) {
 	settings, generated, err := store.SaveSetup(context.Background(), SetupRequest{
 		Storage: recovery.StorageConfiguration{
 			Bucket: "recovery", Region: "auto", Endpoint: "https://account.r2.cloudflarestorage.com",
+			Prefix:      "customer-a",
 			AccessKeyID: "access", SecretAccessKey: "secret", ForcePathStyle: true,
 			CustomCAPEM: "certificate", ProxyURL: "https://proxy.internal:8443",
 		},
@@ -111,12 +112,28 @@ func TestSaveSetupPublishesConfigurationLast(t *testing.T) {
 	if fmt.Sprint(client.writes) != fmt.Sprint(wantWrites) {
 		t.Fatalf("writes = %v, want %v", client.writes, wantWrites)
 	}
+	bslPath := "/apis/velero.io/v1/namespaces/dr/backupstoragelocations/default"
+	bsl := client.objects[bslPath]
+	objectStorage := bsl["spec"].(map[string]any)["objectStorage"].(map[string]any)
+	if objectStorage["prefix"] != "customer-a/velero" {
+		t.Fatalf("Velero prefix = %q, want isolated subdirectory", objectStorage["prefix"])
+	}
 	loaded, err := store.Load(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if loaded.Schedule != "0 2 * * *" || loaded.RetentionCount != 7 || loaded.RecoveryKey != settings.RecoveryKey {
 		t.Fatalf("unexpected loaded settings: %#v", loaded)
+	}
+}
+
+func TestVeleroStoragePrefix(t *testing.T) {
+	for input, expected := range map[string]string{
+		"": "velero", "tenant": "tenant/velero", "/tenant/": "tenant/velero",
+	} {
+		if actual := veleroStoragePrefix(input); actual != expected {
+			t.Errorf("veleroStoragePrefix(%q) = %q, want %q", input, actual, expected)
+		}
 	}
 }
 

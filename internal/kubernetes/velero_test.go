@@ -56,6 +56,38 @@ func TestVeleroRestoreRejectsPartialFailure(t *testing.T) {
 	}
 }
 
+func TestVeleroRestoreWaitsForBackupSynchronization(t *testing.T) {
+	backupReads := 0
+	restoreCreated := false
+	client := fakeClient(func(request *http.Request) *http.Response {
+		switch {
+		case request.Method == http.MethodGet && strings.Contains(request.URL.Path, "/backups/"):
+			backupReads++
+			if backupReads < 3 {
+				return jsonResponse(http.StatusNotFound, `{"message":"not found"}`)
+			}
+			return jsonResponse(http.StatusOK, `{}`)
+		case request.Method == http.MethodPost:
+			restoreCreated = true
+			return jsonResponse(http.StatusCreated, `{}`)
+		case request.Method == http.MethodGet && strings.Contains(request.URL.Path, "/restores/"):
+			return jsonResponse(http.StatusOK, `{"status":{"phase":"Completed","errors":0}}`)
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.Path)
+		}
+		return nil
+	})
+	velero := NewVelero(client, "dr")
+	velero.pollInterval = time.Millisecond
+	velero.backupSyncTimeout = time.Second
+	if err := velero.Restore(context.Background(), "restore", "backup", func(protocol.Progress) {}); err != nil {
+		t.Fatal(err)
+	}
+	if backupReads != 3 || !restoreCreated {
+		t.Fatalf("backup reads = %d, restore created = %v", backupReads, restoreCreated)
+	}
+}
+
 func TestReviewTokenRequiresAudienceAndServiceAccount(t *testing.T) {
 	client := fakeClient(func(request *http.Request) *http.Response {
 		if request.Header.Get("Authorization") != "Bearer reviewer-token" {
