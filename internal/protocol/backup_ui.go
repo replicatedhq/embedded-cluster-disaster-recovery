@@ -53,8 +53,8 @@ var backupTemplate = template.Must(template.New("backup").Parse(`<!doctype html>
     <table><thead><tr><th>Created</th><th>Recovery point</th></tr></thead><tbody id="points"></tbody></table>
   </section>
 <script nonce="{{.Nonce}}">
-const extensionBase = {{printf "%q" .ExtensionBase}};
-const consoleBase = {{printf "%q" .ConsoleBase}};
+const extensionBase = {{.ExtensionBase}};
+const consoleBase = {{.ConsoleBase}};
 let recoveryKey = '';
 const value = id => document.getElementById(id).value;
 function message(id, text) { document.getElementById(id).textContent = text; }
