@@ -33,7 +33,7 @@ spec:
     helmCharts:
       - chart:
           name: embedded-cluster-disaster-recovery
-          chartVersion: 0.1.0
+          chartVersion: 0.1.1
         releaseName: embedded-cluster-disaster-recovery
         namespace: embedded-cluster-dr
     lifecycleHandlers:

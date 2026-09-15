@@ -53,7 +53,7 @@ spec:
               # The emptyDir mount itself is initialized by kubelet. Use an
               # application-owned child so the non-root controller can enforce
               # mode 0700 without trying to chmod the volume root.
-              value: /var/run/embedded-cluster-dr/work
+              value: /var/run/embedded-cluster-dr/workflows
           volumeMounts:
             - name: runtime
               mountPath: /var/run/embedded-cluster-dr

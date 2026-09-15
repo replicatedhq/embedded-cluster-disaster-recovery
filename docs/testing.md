@@ -6,7 +6,7 @@ Run the same checks as CI:
 
 ```sh
 make verify
-make package VERSION=0.1.0
+make package VERSION=0.1.1
 docker build --build-arg TARGETARCH=amd64 -t embedded-cluster-dr:test .
 ```
 
@@ -23,6 +23,10 @@ in that bucket. Do not put credentials on a command line or in shell history.
 
 1. Install a DR-enabled application release and open the Disaster Recovery page
    in the EC admin console.
+   In a clean namespace, confirm the controller becomes Ready without a
+   temporary-root chmod error. In its pod, verify
+   `/var/run/embedded-cluster-dr/workflows` is owned by UID 65532 and has mode
+   0700.
 2. Enter the R2 S3 endpoint
    `https://<account-id>.r2.cloudflarestorage.com`, region `auto`, bucket,
    isolated prefix, and scoped access key credentials. Leave custom CA and proxy
@@ -37,6 +41,9 @@ in that bucket. Do not put credentials on a command line or in shell history.
 6. Enable a short test schedule. Confirm the scheduler uses one stable operation
    ID while a backup is in progress or retrying and creates no duplicate ready
    point for the same scheduled instant.
+   Replace the controller pod during a backup and confirm the operation retries
+   or fails explicitly; an incomplete backup must not appear as a ready recovery
+   point.
 7. Exercise retention with a small count. Confirm an expired point disappears
    from the UI before its Velero backup and encrypted archive are deleted.
 8. Destroy the test cluster. Keep only the installer for the exact backed-up
