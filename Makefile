@@ -1,4 +1,4 @@
-VERSION ?= 0.1.0
+VERSION ?= 0.1.1
 DIST := $(CURDIR)/dist
 CHART_BOOTSTRAP := $(CURDIR)/chart/bootstrap
 CHART_PACKAGE := $(DIST)/embedded-cluster-disaster-recovery-$(VERSION).tgz
@@ -23,7 +23,9 @@ vet:
 chart:
 	helm lint chart
 	helm template embedded-cluster-dr chart --namespace embedded-cluster-dr --include-crds >/dev/null
-	@helm template embedded-cluster-dr chart --namespace embedded-cluster-dr | grep -q 'value: /var/run/embedded-cluster-dr/work'
+	@helm template embedded-cluster-dr chart --namespace embedded-cluster-dr | grep -q 'value: /var/run/embedded-cluster-dr/workflows'
+	@helm template embedded-cluster-dr chart --namespace embedded-cluster-dr --show-only templates/deployment.yaml | grep -q 'runAsUser: 65532'
+	@helm template embedded-cluster-dr chart --namespace embedded-cluster-dr --show-only templates/deployment.yaml | grep -q 'mountPath: /var/run/embedded-cluster-dr'
 	@helm template embedded-cluster-dr chart --namespace embedded-cluster-dr | grep -q 'path: /var/lib/ec/kubelet/pods'
 	@helm template embedded-cluster-dr chart --namespace embedded-cluster-dr | grep -q 'path: /var/lib/ec/kubelet/plugins'
 	@helm template embedded-cluster-dr chart --namespace embedded-cluster-dr | grep -q 'memory: 512Mi'

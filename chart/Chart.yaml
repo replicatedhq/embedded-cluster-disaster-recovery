@@ -2,7 +2,7 @@ apiVersion: v2
 name: embedded-cluster-disaster-recovery
 description: Replicated Embedded Cluster lifecycle extension for Velero disaster recovery
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: 0.1.0
 dependencies:
   - name: velero
