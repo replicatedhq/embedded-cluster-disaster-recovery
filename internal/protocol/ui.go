@@ -43,7 +43,7 @@ var restoreTemplate = template.Must(template.New("restore").Parse(`<!doctype htm
   <div id="message" class="message">Enter storage details to list complete recovery points.</div>
   <table><thead><tr><th>Created</th><th>Recovery point</th><th></th></tr></thead><tbody id="points"></tbody></table>
 <script nonce="{{.Nonce}}">
-const operationID = {{printf "%q" .OperationID}};
+const operationID = {{.OperationID}};
 function configuration() {
   return {storage: {
     bucket: document.getElementById('bucket').value,
