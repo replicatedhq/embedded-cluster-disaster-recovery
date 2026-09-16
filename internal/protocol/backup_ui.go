@@ -32,7 +32,7 @@ var backupTemplate = template.Must(template.New("backup").Parse(`<!doctype html>
   <p>Configure S3-compatible storage, keep the recovery key outside this cluster, and create complete recovery points.</p>
   <section><h2>Backup storage</h2>
     <div class="grid">
-      <div><label for="bucket">Bucket</label><input id="bucket" autocomplete="off"></div>
+      <div><label for="bucket">Bucket (required)</label><input id="bucket" required autocomplete="off"></div>
       <div><label for="prefix">Prefix</label><input id="prefix" value="embedded-cluster-dr" autocomplete="off"></div>
       <div><label for="region">Region</label><input id="region" value="auto" autocomplete="off"></div>
       <div><label for="endpoint">Custom S3 endpoint</label><input id="endpoint" placeholder="https://ACCOUNT.r2.cloudflarestorage.com" autocomplete="off"></div>
@@ -43,7 +43,7 @@ var backupTemplate = template.Must(template.New("backup").Parse(`<!doctype html>
       <div><label for="proxyUrl">Proxy URL (optional)</label><input id="proxyUrl" autocomplete="off"></div>
       <div><label for="customCaPem">Custom CA certificate (optional)</label><textarea id="customCaPem" rows="4"></textarea></div>
     </div>
-    <p><button id="save">Test and save configuration</button></p>
+    <p><button id="save" disabled>Test and save configuration</button></p>
     <div id="configMessage" class="message">Loading configuration status…</div>
     <div id="keyMessage" class="message key"><strong>Download the recovery key now.</strong> It is shown only when first generated.<br><button id="downloadKey" class="secondary">Download recovery key</button></div>
   </section>
@@ -58,24 +58,39 @@ const consoleBase = {{.ConsoleBase}};
 let recoveryKey = '';
 const value = id => document.getElementById(id).value;
 function message(id, text) { document.getElementById(id).textContent = text; }
+function updateSaveButton() { document.getElementById('save').disabled = !value('bucket').trim(); }
 async function loadConfiguration() {
-  const response = await fetch(extensionBase + '/ui/api/configuration'); const body = await response.json();
-  if (!response.ok) { message('configMessage', body.message || 'Configuration is unavailable.'); return; }
-  if (!body.configured) { message('configMessage', 'Not configured. Enter storage credentials to begin.'); return; }
-  for (const field of ['bucket','prefix','region','endpoint','accessKeyId','schedule']) if (body[field] !== undefined) document.getElementById(field).value = body[field];
-  if (body.retentionCount) document.getElementById('retention').value = body.retentionCount;
-  message('configMessage', 'Configured' + (body.schedulePaused ? '; scheduled backups are paused after restore.' : '.'));
-  await loadPoints();
+  try {
+    const response = await fetch(extensionBase + '/ui/api/configuration');
+    let body = {}; try { body = await response.json(); } catch (error) { if (response.ok) throw error; }
+    if (!response.ok) { message('configMessage', body.message || 'Configuration is unavailable.'); return; }
+    if (!body.configured) { message('configMessage', 'Not configured. Enter storage credentials to begin.'); return; }
+    for (const field of ['bucket','prefix','region','endpoint','accessKeyId','schedule']) if (body[field] !== undefined) document.getElementById(field).value = body[field];
+    if (body.retentionCount) document.getElementById('retention').value = body.retentionCount;
+    updateSaveButton();
+    message('configMessage', 'Configured' + (body.schedulePaused ? '; scheduled backups are paused after restore.' : '.'));
+    loadPoints();
+  } catch (error) {
+    message('configMessage', 'Could not load configuration. Check the connection and try again.');
+  }
 }
 async function saveConfiguration() {
+  if (!value('bucket').trim()) { message('configMessage', 'Bucket is required.'); updateSaveButton(); return; }
   const button = document.getElementById('save'); button.disabled = true; message('configMessage', 'Testing storage and saving configuration…');
-  const payload = {storage:{bucket:value('bucket'),prefix:value('prefix'),region:value('region'),endpoint:value('endpoint'),accessKeyId:value('accessKeyId'),secretAccessKey:value('secretAccessKey'),forcePathStyle:true,customCaPem:value('customCaPem'),proxyUrl:value('proxyUrl')},schedule:value('schedule'),retentionCount:Number(value('retention'))};
-  const response = await fetch(extensionBase + '/ui/api/configuration',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const body = await response.json();
-  button.disabled = false; document.getElementById('secretAccessKey').value = '';
-  if (!response.ok) { message('configMessage', body.message || 'Configuration failed.'); return; }
-  message('configMessage','Storage is writable and disaster recovery is configured.');
-  if (body.recoveryKeyGenerated) { recoveryKey = body.recoveryKey; document.getElementById('keyMessage').style.display = 'block'; }
-  await loadPoints();
+  try {
+    const payload = {storage:{bucket:value('bucket'),prefix:value('prefix'),region:value('region'),endpoint:value('endpoint'),accessKeyId:value('accessKeyId'),secretAccessKey:value('secretAccessKey'),forcePathStyle:true,customCaPem:value('customCaPem'),proxyUrl:value('proxyUrl')},schedule:value('schedule'),retentionCount:Number(value('retention'))};
+    const response = await fetch(extensionBase + '/ui/api/configuration',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    let body = {}; try { body = await response.json(); } catch (error) { if (response.ok) throw error; }
+    document.getElementById('secretAccessKey').value = '';
+    if (!response.ok) { message('configMessage', body.message || 'Configuration failed.'); return; }
+    message('configMessage','Storage is writable and disaster recovery is configured.');
+    if (body.recoveryKeyGenerated) { recoveryKey = body.recoveryKey; document.getElementById('keyMessage').style.display = 'block'; }
+    loadPoints();
+  } catch (error) {
+    message('configMessage', 'Could not test or save configuration. Check the connection and try again.');
+  } finally {
+    updateSaveButton();
+  }
 }
 function downloadKey() {
   if (!recoveryKey) return; const blob = new Blob([recoveryKey + '\n'],{type:'text/plain'}); const link = document.createElement('a');
@@ -98,7 +113,7 @@ async function loadPoints() {
   const response = await fetch(extensionBase + '/ui/api/recovery-points'); const body = await response.json(); if (!response.ok) return;
   const rows = document.getElementById('points'); rows.replaceChildren(); for (const point of body.recoveryPoints) { const row=document.createElement('tr'); const date=document.createElement('td'); date.textContent=new Date(point.createdAt).toLocaleString(); const id=document.createElement('td'); id.textContent=point.id; row.append(date,id); rows.appendChild(row); }
 }
-document.getElementById('save').addEventListener('click',saveConfiguration); document.getElementById('downloadKey').addEventListener('click',downloadKey); document.getElementById('backup').addEventListener('click',createBackup); loadConfiguration();
+document.getElementById('bucket').addEventListener('input',updateSaveButton); document.getElementById('save').addEventListener('click',saveConfiguration); document.getElementById('downloadKey').addEventListener('click',downloadKey); document.getElementById('backup').addEventListener('click',createBackup); updateSaveButton(); loadConfiguration();
 </script></main></body></html>`))
 
 func (s *Server) backupUI(writer http.ResponseWriter, request *http.Request) {
