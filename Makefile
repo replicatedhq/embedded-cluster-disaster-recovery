@@ -47,6 +47,7 @@ package: clean
 		helm package chart --destination "$(DIST)" --version "$(VERSION)" --app-version "$(VERSION)"
 	@test "$$(tar -tzf "$(CHART_PACKAGE)" | grep -c '^embedded-cluster-disaster-recovery/bootstrap/linux-amd64/embedded-cluster-dr.xz$$')" -eq 1
 	@test "$$(tar -tzf "$(CHART_PACKAGE)" | grep -c '^embedded-cluster-disaster-recovery/bootstrap/linux-arm64/embedded-cluster-dr.xz$$')" -eq 1
+	@helm template embedded-cluster-dr "$(CHART_PACKAGE)" --namespace embedded-cluster-dr --show-only templates/deployment.yaml | grep -q "image: \"ghcr.io/replicatedhq/embedded-cluster-disaster-recovery:$(VERSION)\""
 	cd "$(DIST)" && shasum -a 256 embedded-cluster-dr-linux-amd64 embedded-cluster-dr-linux-arm64 embedded-cluster-disaster-recovery-$(VERSION).tgz > checksums.txt
 
 clean:

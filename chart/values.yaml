@@ -1,6 +1,8 @@
 image:
   repository: ghcr.io/replicatedhq/embedded-cluster-disaster-recovery
-  tag: "0.1.0"
+  # Defaults to the chart appVersion, which the release workflow sets from the
+  # release tag. Set this only to deploy a different controller version.
+  tag: ""
   pullPolicy: IfNotPresent
 
 serviceAccount:
