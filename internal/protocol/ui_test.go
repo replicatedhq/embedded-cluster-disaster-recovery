@@ -91,6 +91,12 @@ func TestRestoreUIRendersOperationID(t *testing.T) {
 	if doubleEncoded := `"\"` + serverTestOperationID + `\""`; strings.Contains(body, doubleEncoded) {
 		t.Fatalf("response contains double-encoded operation ID %q", doubleEncoded)
 	}
+	if strings.Contains(body, `onclick=`) {
+		t.Fatal("response contains an inline event handler blocked by the UI content security policy")
+	}
+	if !strings.Contains(body, `document.getElementById('loadPoints').addEventListener('click', loadPoints);`) {
+		t.Fatal("response does not register the load recovery points click handler")
+	}
 }
 
 func TestUITemplatesContextuallyEscapeJavaScriptValues(t *testing.T) {

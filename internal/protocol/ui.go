@@ -38,7 +38,7 @@ var restoreTemplate = template.Must(template.New("restore").Parse(`<!doctype htm
     <label for="accessKeyId">Access key ID</label><input id="accessKeyId" autocomplete="off">
     <label for="secretAccessKey">Secret access key</label><input id="secretAccessKey" type="password" autocomplete="off">
     <label for="recoveryKey">Recovery key</label><input id="recoveryKey" type="password" autocomplete="off">
-    <button onclick="loadPoints()">Load recovery points</button>
+    <button id="loadPoints">Load recovery points</button>
   </fieldset>
   <div id="message" class="message">Enter storage details to list complete recovery points.</div>
   <table><thead><tr><th>Created</th><th>Recovery point</th><th></th></tr></thead><tbody id="points"></tbody></table>
@@ -85,6 +85,7 @@ async function selectPoint(id) {
   message('Recovery point selected. Return to the installer terminal for progress.');
 }
 function message(value) { document.getElementById('message').textContent = value; }
+document.getElementById('loadPoints').addEventListener('click', loadPoints);
 </script>
 </main></body></html>`))
 
