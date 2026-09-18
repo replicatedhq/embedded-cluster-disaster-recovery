@@ -95,6 +95,54 @@ func TestBackupOperationRoundTrip(t *testing.T) {
 	}
 }
 
+func TestBackupUIRendersBrowserProxyPathsAsJavaScriptStrings(t *testing.T) {
+	server, err := NewServer(&fakeExecutor{}, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.SetSettings(&fakeSettings{})
+	request := httptest.NewRequest(http.MethodGet, "/ui/backup", nil)
+	request.Header.Set("X-Forwarded-Prefix", "/api/console/disaster-recovery/extension")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("backup UI status = %d: %s", response.Code, response.Body.String())
+	}
+	if !bytes.Contains(response.Body.Bytes(), []byte(`const extensionBase = "/api/console/disaster-recovery/extension";`)) {
+		t.Fatalf("backup UI did not render an executable extension base: %s", response.Body.String())
+	}
+	if !bytes.Contains(response.Body.Bytes(), []byte(`const consoleBase = "/api/console/disaster-recovery";`)) {
+		t.Fatalf("backup UI did not render an executable console base: %s", response.Body.String())
+	}
+}
+
+func TestRestoreUIRendersOperationIDAsJavaScriptString(t *testing.T) {
+	server, err := NewServer(&fakeExecutor{}, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := OperationRequest{
+		APIVersion: APIVersion, OperationID: serverTestOperationID, Operation: OperationRestore,
+		Phase: PhaseBootstrap, RecoveryPointID: serverTestOperationID,
+	}
+	if response := performJSON(server.Handler(), http.MethodPost, "/v1/operations", request); response.Code != http.StatusCreated {
+		t.Fatalf("create restore status = %d: %s", response.Code, response.Body.String())
+	}
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/ui/restore?operation="+serverTestOperationID, nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("restore UI status = %d: %s", response.Code, response.Body.String())
+	}
+	want := []byte(`const operationID = "` + serverTestOperationID + `";`)
+	if !bytes.Contains(response.Body.Bytes(), want) {
+		t.Fatalf("restore UI did not render an executable operation ID: %s", response.Body.String())
+	}
+	if bytes.Contains(response.Body.Bytes(), []byte(`onclick=`)) ||
+		!bytes.Contains(response.Body.Bytes(), []byte(`addEventListener('click', loadPoints)`)) {
+		t.Fatalf("restore UI uses an inline event handler blocked by its CSP: %s", response.Body.String())
+	}
+}
+
 func TestCreateIsIdempotentWithoutRetainingPlaintextConfigurationIdentity(t *testing.T) {
 	executor := &fakeExecutor{}
 	server, err := NewServer(executor, t.TempDir())
